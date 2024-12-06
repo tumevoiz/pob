@@ -1,6 +1,9 @@
+import abc
+import hashlib
 import uuid
 from datetime import datetime
 from pydantic import BaseModel
+
 
 class Block(BaseModel):
     id: uuid.UUID
@@ -20,13 +23,42 @@ class CreateBlockRequest(BaseModel):
     content: str
 
 
-class Miner: # TODO: implement it
+class Miner(abc.ABC):
+    def __init__(self, difficulty: int) -> None:
+        self.difficulty = difficulty
+
+    @abc.abstractmethod
     def mine(self, block: Block) -> Block:
         pass
 
 
-def _calculate_current_hash(block: Block) -> str: # TODO: implement it
-    pass
+def _calculate_current_hash(block: Block) -> str:
+    inp = f"{block.id}+{block.timestamp}+{block.nonce}"
+    return str(hashlib.sha256(inp.encode('utf-8')).hexdigest())
+
+
+class POWMiner(Miner):
+
+    def mine(self, block: Block) -> Block:
+        mined = False
+        last_block = None
+
+        prefix = '0' * self.difficulty
+        print(f"prefix: {prefix}")
+
+        while not mined:
+            current_block = block
+            current_block.nonce += 1
+            current_block.hash = _calculate_current_hash(current_block)
+
+            print(
+                f"[b_id: {current_block.id}; b_timestamp: {current_block.timestamp}] calculating hash: {current_block.hash}")
+
+            mined = current_block.hash.startswith(prefix)
+            last_block = current_block
+
+        print(f"[b_id: {block.id}; b_timestamp: {block.timestamp}] mined.")
+        return last_block
 
 
 class Blockchain:

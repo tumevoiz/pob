@@ -1,5 +1,6 @@
 import abc
 import hashlib
+import logging
 import uuid
 from datetime import datetime
 from pydantic import BaseModel
@@ -21,6 +22,11 @@ class Block(BaseModel):
 
 class CreateBlockRequest(BaseModel):
     content: str
+
+
+class VerifyBlockRequest(BaseModel):
+    block: Block
+    source: str
 
 
 class Miner(abc.ABC):
@@ -60,6 +66,8 @@ class POWMiner(Miner):
         print(f"[b_id: {block.id}; b_timestamp: {block.timestamp}] mined.")
         return last_block
 
+class BlockchainError(RuntimeError):
+    pass
 
 class Blockchain:
     blocks: list[Block] = []
@@ -76,13 +84,13 @@ class Blockchain:
             nonce=0
         )
 
-        genesis.hash = _calculate_current_hash(genesis)
+        genesis.hash = 'GENESIS_HASH'
 
         self.blocks = [
             genesis
         ]
 
-    def add_block(self, create_block_request: CreateBlockRequest) -> None:
+    def add_block(self, create_block_request: CreateBlockRequest) -> Block:
         block_id = uuid.uuid4()
         block_timestamp = datetime.now().timestamp()
         block_content = create_block_request.content
@@ -99,3 +107,16 @@ class Blockchain:
         mined_block = self._miner.mine(block)
 
         self.blocks.append(mined_block)
+        return mined_block
+
+    def add_existing_block(self, block: Block) -> None:
+        prev_block = self.blocks[-1]
+
+        if prev_block.content == 'GENESIS':
+            logging.warning('Previous block was genesis. Omitting verification.')
+            self.blocks.append(block)
+
+        if prev_block.hash != block.previous_hash:
+            raise BlockchainError(f"Block hashes are not equal: {prev_block.hash} != {block.previous_hash}")
+
+        self.blocks.append(block)
